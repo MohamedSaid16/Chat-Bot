@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G11_chatbot - Phi3</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(145deg, #0a0f1e 0%, #1a1f2f 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        /* الحاوية الرئيسية */
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            height: 600px;
+            position: relative;
+            background: transparent;
+        }
+        
+        /* ===== الشريط الجانبي للمحادثات ===== */
+        .sidebar {
+            width: 280px;
+            background: #1e2439;
+            border-left: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 50%;
+            right: -290px; /* مخفي خارج الشاشة */
+            transform: translateY(-50%);
+            height: 680px;
+            z-index: 1000;
+            transition: right 0.3s ease;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.3);
+            border-radius: 28px 0 0 28px;
+            overflow: hidden;
+        }
+
+        /* عند فتح القائمة */
+        .sidebar.open {
+            right: 20px; /* يظهر مع ترك مسافة من الحافة */
+        }
+
+        /* رأس الشريط الجانبي */
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            background: #1a1f2f;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(145deg, #3b82f6, #8b5cf6);
+            border: none;
+            border-radius: 40px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .new-chat-btn i {
+            font-size: 16px;
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #1e2439;
+        }
+
+        .history-item {
+            padding: 14px;
+            background: #242b41;
+            border-radius: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            position: relative;
+        }
+
+        .history-item:hover {
+            background: #2d3349;
+            border-color: #3b82f6;
+        }
+
+        .history-item.active {
+            background: #2d3349;
+            border-color: #8b5cf6;
+        }
+
+        .history-item-title {
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 25px;
+        }
+
+        .history-item-date {
+            color: #929cbd;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .delete-chat {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #929cbd;
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.2s, color 0.2s;
+        }
+
+        .history-item:hover .delete-chat {
+            opacity: 1;
+        }
+
+        .delete-chat:hover {
+            color: #ef4444;
+        }
+        
+        /* ===== بطاقة المحادثة الرئيسية ===== */
+        .messenger-card {
+            width: 100%;
+            height: 100%;
+            background: #1a1f2f;
+            border-radius: 32px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
+        
+        .messenger-header {
+            background: #242b41;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        /* زر القائمة (الثلاث خطوط) */
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        .menu-toggle:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .avatar-bot {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(145deg, #3b82f6, #8b5cf6);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: white;
+        }
+        
+        .header-info {
+            flex: 1;
+        }
+        
+        .header-info h3 {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .model-badge {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: normal;
+        }
+        
+        .header-info p {
+            color: #929cbd;
+            font-size: 13px;
+        }
+        
+        .header-info p i {
+            color: #10b981;
+            font-size: 8px;
+            margin-left: 4px;
+        }
+        
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            background: #1a1f2f;
+        }
+        
+        .message {
+            display: flex;
+            max-width: 88%;
+            animation: messagePop 0.3s ease;
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .message.bot {
+            align-self: flex-start;
+        }
+        
+        .msg-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #2d3349;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
+        
+        .user .msg-avatar {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .bot .msg-avatar {
+            background: #2b314a;
+            color: #8b5cf6;
+        }
+        
+        .bubble {
+            padding: 12px 18px;
+            border-radius: 22px;
+            font-size: 14px;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+        
+        .user .bubble {
+            background: #3b82f6;
+            color: white;
+            border-bottom-left-radius: 22px;
+            border-bottom-right-radius: 6px;
+        }
+        
+        .bot .bubble {
+            background: #242b41;
+            color: #eef2ff;
+            border-bottom-right-radius: 22px;
+            border-bottom-left-radius: 6px;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 12px 18px;
+            background: #242b41;
+            border-radius: 22px;
+            width: fit-content;
+        }
+        
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #8b5cf6;
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+            30% { transform: translateY(-8px); opacity: 1; }
+        }
+        
+        @keyframes messagePop {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .input-area {
+            background: #242b41;
+            padding: 16px 18px 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #1a1f2f;
+            border-radius: 40px;
+            padding: 6px 6px 6px 18px;
+        }
+        
+        .input-wrapper input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 14px;
+            padding: 12px 0;
+        }
+        
+        .input-wrapper input::placeholder {
+            color: #4f5675;
+        }
+        
+        .input-wrapper button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #3b82f6, #8b5cf6);
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .input-wrapper button:hover {
+            transform: scale(1.05);
+        }
+        
+        .chat-area::-webkit-scrollbar,
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .chat-area::-webkit-scrollbar-thumb,
+        .chat-history::-webkit-scrollbar-thumb {
+            background: #3f4665;
+            border-radius: 10px;
+        }
+        
+        /* طبقة تغطية خلف الشريط الجانبي */
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(2px);
+        }
+        
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* ===== للشاشات الصغيرة ===== */
+        @media (max-width: 768px) {
+            .sidebar {
+                height: 100%;
+                top: 0;
+                transform: none;
+                border-radius: 0;
+                right: -290px;
+            }
+            
+            .sidebar.open {
+                right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- طبقة التغطية (تظهر خلف الشريط الجانبي) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="app-container">
+    <!-- الشريط الجانبي للمحادثات -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <button class="new-chat-btn" id="newChatBtn">
+                <i class="fa-solid fa-plus"></i>
+                محادثة جديدة
+            </button>
+        </div>
+        <div class="chat-history" id="chatHistory">
+            <!-- سيتم إضافة المحادثات هنا عبر JavaScript -->
+        </div>
+    </div>
+
+    <!-- بطاقة المحادثة الرئيسية -->
+    <div class="messenger-card">
+        <div class="messenger-header">
+            <button class="menu-toggle" id="menuToggle">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div class="avatar-bot">
+                <i class="fa-solid fa-robot"></i>
+            </div>
+            <div class="header-info">
+                <h3>
+                    G11 · chatbot
+                    <span class="model-badge">phi3</span>
+                </h3>
+                <p><i class="fa-regular fa-circle"></i> متصل بـ Ollama</p>
+            </div>
+        </div>
+        
+        <div class="chat-area" id="chatArea"></div>
+        
+        <div class="input-area">
+            <div class="input-wrapper">
+                <input type="text" id="messageInput" placeholder="اسألني أي شيء..." autocomplete="off">
+                <button id="sendButton">
+                    <i class="fa-regular fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== الإعدادات الأساسية ====================
+    const API_URL = 'http://localhost:8081/chat'; // غير الرابط حسب إعداداتك
+    
+    // ==================== عناصر الصفحة ====================
+    const sidebar = document.getElementById('sidebar');
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    // ==================== فتح/إغلاق الشريط الجانبي ====================
+    function openSidebar() {
+        sidebar.classList.add('open');
+        sidebarOverlay.classList.add('active');
+    }
+    
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+    }
+    
+    // عند النقر على زر القائمة
+    menuToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (sidebar.classList.contains('open')) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
+    });
+    
+    // عند النقر على طبقة التغطية
+    sidebarOverlay.addEventListener('click', closeSidebar);
+    
+    // منع إغلاق الشريط عند النقر داخله
+    sidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    // إغلاق الشريط بالضغط على ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+    });
+    
+    // ==================== إدارة المحادثات (Sessions) ====================
+    let sessions = [];
+    let currentSessionId = null;
+    
+    // تحميل المحادثات من localStorage
+    function loadSessions() {
+        const saved = localStorage.getItem('phi3_chat_sessions');
+        if (saved) {
+            sessions = JSON.parse(saved);
+        } else {
+            // إنشاء محادثة ترحيبية إذا لم توجد محادثات
+            const welcomeSession = {
+                id: 'session_' + Date.now(),
+                title: 'المحادثة الترحيبية',
+                createdAt: new Date().toISOString(),
+                messages: [{
+                    id: Date.now(),
+                    sender: 'bot',
+                    text: '👋 مرحباً! أنا بوت G11 المدعوم بـ Phi3. اسألني أي شيء وسأجيبك!',
+                    time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                }]
+            };
+            sessions = [welcomeSession];
+            currentSessionId = welcomeSession.id;
+            saveSessions();
+        }
+        
+        // تعيين المحادثة الحالية
+        if (!currentSessionId && sessions.length > 0) {
+            currentSessionId = sessions[0].id;
+        }
+    }
+    
+    // حفظ المحادثات
+    function saveSessions() {
+        localStorage.setItem('phi3_chat_sessions', JSON.stringify(sessions));
+    }
+    
+    // الحصول على المحادثة الحالية
+    function getCurrentSession() {
+        return sessions.find(s => s.id === currentSessionId);
+    }
+    
+    // ==================== عرض المحادثات في الشريط الجانبي ====================
+    function renderSidebar() {
+        const historyDiv = document.getElementById('chatHistory');
+        historyDiv.innerHTML = '';
+        
+        sessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        sessions.forEach(session => {
+            const date = new Date(session.createdAt);
+            const item = document.createElement('div');
+            item.className = `history-item ${session.id === currentSessionId ? 'active' : ''}`;
+            
+            item.innerHTML = `
+                <div class="history-item-title">${escapeHtml(session.title)}</div>
+                <div class="history-item-date">
+                    <i class="fa-regular fa-clock"></i>
+                    ${date.toLocaleDateString('ar-EG')} - ${date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <button class="delete-chat" onclick="deleteSession('${session.id}', event)">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            `;
+            
+            item.addEventListener('click', () => switchToSession(session.id));
+            historyDiv.appendChild(item);
+        });
+    }
+    
+    // ==================== عرض رسائل المحادثة الحالية ====================
+    function renderMessages() {
+        const currentSession = getCurrentSession();
+        if (!currentSession) return;
+        
+        const chatArea = document.getElementById('chatArea');
+        chatArea.innerHTML = currentSession.messages.map(msg => `
+            <div class="message ${msg.sender}">
+                <div class="msg-avatar">
+                    <i class="fa-${msg.sender === 'user' ? 'regular' : 'solid'} fa-${msg.sender === 'user' ? 'user' : 'robot'}"></i>
+                </div>
+                <div class="bubble">${escapeHtml(msg.text)}</div>
+            </div>
+        `).join('');
+        
+        scrollToBottom();
+    }
+    
+    // ==================== التبديل بين المحادثات ====================
+    function switchToSession(sessionId) {
+        currentSessionId = sessionId;
+        renderSidebar();
+        renderMessages();
+        
+        // إغلاق الشريط الجانبي بعد اختيار محادثة
+        closeSidebar();
+    }
+    
+    // ==================== إنشاء محادثة جديدة ====================
+    function createNewSession() {
+        const newSession = {
+            id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            title: 'محادثة جديدة',
+            createdAt: new Date().toISOString(),
+            messages: [{
+                id: Date.now(),
+                sender: 'bot',
+                text: '👋 مرحباً! كيف يمكنني مساعدتك اليوم؟',
+                time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            }]
+        };
+        
+        sessions.push(newSession);
+        saveSessions();
+        switchToSession(newSession.id);
+    }
+    
+    // ==================== حذف محادثة ====================
+    window.deleteSession = function(sessionId, event) {
+        event.stopPropagation();
+        
+        if (sessions.length === 1) {
+            alert('لا يمكن حذف آخر محادثة. يمكنك إنشاء محادثة جديدة بدلاً من ذلك.');
+            return;
+        }
+        
+        if (confirm('هل أنت متأكد من حذف هذه المحادثة؟')) {
+            sessions = sessions.filter(s => s.id !== sessionId);
+            
+            if (currentSessionId === sessionId) {
+                currentSessionId = sessions[0].id;
+            }
+            
+            saveSessions();
+            renderSidebar();
+            renderMessages();
+        }
+    };
+    
+    // ==================== إرسال رسالة ====================
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        const currentSession = getCurrentSession();
+        if (!currentSession) return;
+        
+        // إضافة رسالة المستخدم
+        const userMessage = {
+            id: Date.now(),
+            sender: 'user',
+            text: text,
+            time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        currentSession.messages.push(userMessage);
+        
+        // تحديث عنوان المحادثة إذا كانت أول رسالة
+        if (currentSession.messages.filter(m => m.sender === 'user').length === 1) {
+            currentSession.title = text.length > 25 ? text.substring(0, 22) + '...' : text;
+        }
+        
+        saveSessions();
+        renderMessages();
+        
+        input.value = '';
+        showTyping();
+        
+        try {
+            // هنا نستخدم fetch للاتصال بالـ API الخاص بك
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    message: text,
+                    sessionId: currentSession.id 
+                })
+            });
+            
+            const data = await response.json();
+            removeTyping();
+            
+            const botMessage = {
+                id: Date.now(),
+                sender: 'bot',
+                text: data.reply || data.response || data.message || 'تم الاستلام بنجاح',
+                time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            };
+            
+            currentSession.messages.push(botMessage);
+            saveSessions();
+            renderMessages();
+            
+        } catch (error) {
+            console.error('Error:', error);
+            removeTyping();
+            
+            const errorMessage = {
+                id: Date.now(),
+                sender: 'bot',
+                text: '⚠️ عذراً، حدث خطأ في الاتصال. تأكد من: \n1. تشغيل خادم Ollama\n2. تشغيل الخادم المحلي',
+                time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            };
+            
+            currentSession.messages.push(errorMessage);
+            saveSessions();
+            renderMessages();
+        }
+        
+        renderSidebar();
+    }
+    
+    // ==================== دوال مساعدة ====================
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function scrollToBottom() {
+        setTimeout(() => {
+            const chatArea = document.getElementById('chatArea');
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }, 50);
+    }
+    
+    function showTyping() {
+        const chatArea = document.getElementById('chatArea');
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message bot';
+        typingDiv.id = 'typingIndicator';
+        typingDiv.innerHTML = `
+            <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+            <div class="typing-indicator"><span></span><span></span><span></span></div>
+        `;
+        chatArea.appendChild(typingDiv);
+        scrollToBottom();
+    }
+    
+    function removeTyping() {
+        const typing = document.getElementById('typingIndicator');
+        if (typing) typing.remove();
+    }
+    
+    // ==================== التهيئة ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSessions();
+        renderSidebar();
+        renderMessages();
+        
+        // أزرار التحكم
+        document.getElementById('newChatBtn').addEventListener('click', createNewSession);
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        
+        // إدخال الرسالة
+        const input = document.getElementById('messageInput');
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
